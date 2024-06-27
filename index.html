@@ -366,7 +366,7 @@
 
             if (equipments.weapon1.group === 'catalyst' && json.special_skills.some(skill => skill.name === 'magic_weapon')) {
                 const magicWeapon = json.special_skills.find(skill => skill.name === 'magic_weapon');
-                result += `<p>[[/r 1d4+1]]{魔術の得物: ${magicWeapon.note}} (ストレス+3)</p>`;
+                result += `<p>[[/r 1d4+1]]{魔術の得物: ${magicWeapon.note}}<br>(ストレス+3)</p>`;
             }
             result += '</div></div>';
             return result;
