@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>キャラクターシート生成ツール</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css">
+    <style>
+        :root {
+            font-size: 10px;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 80px 20px;
+            background-color: #f0f0f0;
+        }
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        h1 {
+            font-size: 1.6rem;
+            margin-bottom: 20px;
+        }
+        h2 {
+            margin-bottom: 10px;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        .col-section {
+            display: flex;
+            gap: 20px;
+        }
+        .col-section .section {
+            width: 50%;
+        }
+        .section {
+            margin-bottom: 20px;
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        #basic-info-container {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        #basic-info-container > div {
+            flex: 0 0 calc(25% - 5px);
+            margin-bottom: 10px;
+            font-size: 1.4rem;
+        }
+        .skill-item, .special-skill-item, .equipment-item {
+            margin-bottom: 10px;
+            gap: 10px;
+            display: flex;
+            align-items: center;
+            font-size: 1.6rem;
+        }
+        .equipment-item label {
+            flex-basis: 10%;
+            display: block;
+        }
+        .equipment-item select {
+            flex-basis: 45%;
+        }
+        .equipment-item input[type="text"] {
+            flex-basis: 45%;
+        }
+        label {
+            flex: 0 0 40px;
+            font-weight: bold;
+            color: #555;
+            display: block;
+        }
+        input[type="text"], select {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .special-skill-item input[type="text"],.special-skill-item select {
+            padding: 2px;
+        }
+        input[type="checkbox"] {
+            margin-right: 10px;
+        }
+        button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #fff;
+            background-color: #007BFF;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #output {
+            width: 100%;
+            height: 300px;
+            min-height: 300px;
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fff;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        textarea {
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <h1>キャラクターシート生成ツール</h1>
+
+    <div class="section">
+        <h2>基本情報</h2>
+        <div id="basic-info-container"></div>
+    </div>
+        <div class="col-section">
+        <div class="section">
+            <h2>技能</h2>
+            <div id="skills-container"></div>
+        </div>
+
+        <div class="section">
+            <h2>特技</h2>
+            <div id="special-skills-container"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>装備品</h2>
+        <div id="equipment-container"></div>
+    </div>
+
+    <input type="file" id="jsonFileInput" accept=".json">
+    <button onclick="saveToFile()">JSONファイルとして保存</button>
+    <button onclick="loadFromFile()">JSONファイルから読み込む</button>
+    <button onclick="generateFromInput()">入力内容から生成する</button>
+
+    <textarea id="output" rows="20" cols="100"></textarea>
+
+    <script>
+        const skillNames = ["運動", "回避", "感覚", "観察", "技巧", "射撃", "社交", "知識", "白兵", "防御"];
+        const equipmentTypes = ["weapon1", "weapon2", "armor"];
+
+        function initializeUI() {
+            const basicInfoContainer = document.getElementById('basic-info-container');
+            basicInfoContainer.innerHTML = `
+                <div>
+                    <label for="name">名前:</label>
+                    <input type="text" id="name">
+                </div>
+                <div>
+                    <label for="player">プレイヤー:</label>
+                    <input type="text" id="player">
+                </div>
+                <div>
+                    <label for="species">種族:</label>
+                    <input type="text" id="species">
+                </div>
+                <div>
+                    <label for="rare-species">希少種:</label>
+                    <input type="text" id="rare-species">
+                </div>
+                <div>
+                    <label for="init-scar">初期の傷:</label>
+                    <input type="text" id="init-scar">
+                </div>
+                <div>
+                    <label for="init-weakness1">初期の弱点1:</label>
+                    <input type="text" id="init-weakness1">
+                </div>
+                <div>
+                    <label for="init-weakness2">初期の弱点2:</label>
+                    <input type="text" id="init-weakness2">
+                </div>
+            `;
+
+            const skillsContainer = document.getElementById('skills-container');
+            skillNames.forEach(skill => {
+                skillsContainer.innerHTML += `
+                    <div class="skill-item">
+                        <input type="checkbox" id="${skill}" name="${skill}">
+                        <label for="${skill}">${skill}</label>
+                        <input type="text" id="${skill}-expert" placeholder="専門技能（カンマ区切り）">
+                    </div>
+                `;
+            });
+
+            const specialSkillsContainer = document.getElementById('special-skills-container');
+            for (let i = 1; i <= 15; i++) {
+                specialSkillsContainer.innerHTML += `
+                    <div class="special-skill-item">
+                        <select id="special-skill-group-${i}" class="special_skill_group" onchange="updateSpecialSkill(this)">
+                            <option value="">種類を選択</option>
+                            <option value="tactics">戦術</option>
+                            <option value="magic">魔術</option>
+                            <option value="features">特徴</option>
+                        </select>
+                        <select id="special-skill-name-${i}" class="special_skill" onchange="updateSpecialSkill(this)">
+                            <option value="">---</option>
+                        </select>
+                        <input type="text" id="special-skill-note-${i}" class="special_skill_note" placeholder="追記事項" style="display:none;">
+                    </div>
+                `;
+            }
+
+            const equipmentContainer = document.getElementById('equipment-container');
+            equipmentTypes.forEach(type => {
+                equipmentContainer.innerHTML += `
+                    <div class="equipment-item">
+                        <label for="${type}">${type === 'armor' ? '防具' : '武器' + type.slice(-1)}</label>
+                        <select id="${type}-group">
+                            <option value="">なし</option>
+                            ${type === 'armor' ? `
+                                <option value="light_armor">軽装防具</option>
+                                <option value="heavy_armor">重装防具</option>
+                            ` : `
+                                <option value="combat_small">小型白兵武器</option>
+                                <option value="combat_medium">中型白兵武器</option>
+                                <option value="combat_large">大型白兵武器</option>
+                                <option value="shooting">射撃武器</option>
+                                <option value="catalyst">魔術触媒</option>
+                            `}
+                        </select>
+                        <input type="text" id="${type}-name" placeholder="装備名">
+                    </div>
+                `;
+            });
+        }
+
+        function loadFromFile() {
+            const fileInput = document.getElementById('jsonFileInput');
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const jsonContent = e.target.result;
+                    loadCharacterSheet(JSON.parse(jsonContent));
+                };
+                reader.readAsText(file);
+            } else {
+                alert('ファイルを選択してください。');
+            }
+        }
+
+        function loadCharacterSheet(data) {
+            // 基本情報
+            document.getElementById('name').value = data.name || '';
+            document.getElementById('player').value = data.player || '';
+            document.getElementById('species').value = data.species || '';
+            document.getElementById('rare-species').value = data.rare_species || '';
+            document.getElementById('init-scar').value = data.init_scar || '';
+            document.getElementById('init-weakness1').value = data.init_weakness1 || '';
+            document.getElementById('init-weakness2').value = data.init_weakness2 || '';
+
+            // 技能
+            data.skills.forEach((skill, index) => {
+                const skillName = skillNames[index];
+                document.getElementById(skillName).checked = skill.selected;
+                document.getElementById(`${skillName}-expert`).value = skill.expert_skills.join(', ');
+            });
+
+            // 特技
+            data.special_skills.forEach((skill, index) => {
+                document.getElementById(`special-skill-group-${index + 1}`).value = skill.group;
+                updateSpecialSkill(document.getElementById(`special-skill-group-${index + 1}`));
+                document.getElementById(`special-skill-name-${index + 1}`).value = skill.name;
+                document.getElementById(`special-skill-note-${index + 1}`).value = skill.note;
+            });
+
+            // 装備品
+            equipmentTypes.forEach(type => {
+                document.getElementById(`${type}-group`).value = data.equipments[type].group;
+                document.getElementById(`${type}-name`).value = data.equipments[type].name;
+            });
+
+            const formattedText = formatJson(data);
+            document.getElementById('output').value = formattedText;
+        }
+
+        function formatJson(json) {
+            let result = '';
+
+            // Skills
+            const labels = ["運動", "回避", "感覚", "観察", "技巧", "射撃", "社交", "知識", "白兵", "防御"];
+            result += '<p>\n</p>';
+
+            result += '<div style="display:flex;flex-wrap:wrap;align-items: flex-start;gap: 5px;background:#c5beb2;border:1px solid #9f9990;border-radius:10px;padding:10px">';
+            result += '<div style="padding:5px;width:calc(15% - 5px);border: solid 1px #898174; text-align: center; border-radius: 10px;"><p style="font-weight: bold;">初期値</p>';
+            json.skills.forEach((skill, index) => {
+                const label = labels[index];
+                if (!skill.selected) {
+                    result += `<p>[[/r 1d10]]{${label}}</p>`;
+                }
+            });
+            result += '</div>';
+
+            result += '<div style="padding:5px;width:calc(15% - 5px);border: solid 1px #898174; text-align: center; border-radius: 10px;"><p style="font-weight: bold;">基礎技能</p>';
+            json.skills.forEach((skill, index) => {
+                const label = labels[index];
+                if (skill.selected) {
+                    result += `<p>[[/r 2d10]]{${label}}</p>`;
+                }
+            });
+            result += '</div>';
+
+            result += '<div style="padding:5px;width:calc(35% - 5px);border: solid 1px #898174; border-radius: 10px;"><p style="font-weight: bold;">専門技能</p>';
+            json.skills.forEach((skill, index) => {
+                const label = labels[index];
+                if (skill.selected) {
+                    skill.expert_skills.forEach(expert => {
+                        result += `<p>${label} | [[/r 3d10]]{${expert}}</p>`;
+                    });
+                }
+            });
+            result += '</div>';
+
+            result += '<div style="padding:5px;width: 35%;border: solid 1px #898174; border-radius: 10px;"><p style="font-weight: bold;">ダメージ判定</p>';
+            // Equipments
+            const equipments = json.equipments;
+            if (equipments.weapon1.group === 'combat_small') {
+                result += `<p>[[/r 1d4+1]]{${equipments.weapon1.name}}</p>`;
+            } else if (equipments.weapon1.group === 'combat_medium') {
+                result += `<p>[[/r 1d6+1]]{${equipments.weapon1.name}}</p>`;
+            } else if (equipments.weapon1.group === 'combat_large') {
+                result += `<p>[[/r 1d10]]{${equipments.weapon1.name}}</p>`;
+            } else if (equipments.weapon1.group === 'shooting') {
+                result += `<p>[[/r 1d8]]{${equipments.weapon1.name}}</p>`;
+            }
+
+            if (equipments.weapon2.group === 'combat_small') {
+                result += `<p>[[/r 1d4+1]]{${equipments.weapon2.name}}</p>`;
+            } else if (equipments.weapon2.group === 'combat_medium') {
+                result += `<p>[[/r 1d6+1]]{${equipments.weapon2.name}}</p>`;
+            } else if (equipments.weapon2.group === 'combat_large') {
+                result += `<p>[[/r 1d10]]{${equipments.weapon2.name}}</p>`;
+            } else if (equipments.weapon2.group === 'shooting') {
+                result += `<p>[[/r 1d8]]{${equipments.weapon2.name}}</p>`;
+            }
+
+            if (equipments.armor.group === 'combat_small') {
+                result += `<p>[[/r 1d4+1]]{${equipments.armor.name}}</p>`;
+            } else if (equipments.armor.group === 'combat_medium') {
+                result += `<p>[[/r 1d6+1]]{${equipments.armor.name}}</p>`;
+            } else if (equipments.armor.group === 'combat_large') {
+                result += `<p>[[/r 1d10]]{${equipments.armor.name}}</p>`;
+            } else if (equipments.armor.group === 'shooting') {
+                result += `<p>[[/r 1d8]]{${equipments.armor.name}}</p>`;
+            }
+
+            if (equipments.weapon1.group === 'catalyst' && json.special_skills.some(skill => skill.name === 'magic_weapon')) {
+                const magicWeapon = json.special_skills.find(skill => skill.name === 'magic_weapon');
+                result += `<p>魔術の得物: [[/r 1d4+1]]{${magicWeapon.note}} (ストレス+3)</p>`;
+            }
+            result += '</div></div>';
+            return result;
+        }
+
+        function updateSpecialSkill(element) {
+            if (element.classList.contains("special_skill_group")) {
+                var select = element.parentElement.querySelector(".special_skill");
+                switch (element.value) {
+                    case "tactics":
+                        select.innerHTML = `
+                            <option value="concealed_weapon">暗器</option>
+                            <option value="fence_off">受け流し</option>
+                            <option value="covering_fire">援護射撃</option>
+                            <option value="stance">構え</option>
+                            <option value="riding_combat">騎乗戦闘</option>
+                            <option value="fatal_spot_attack">急所の一撃</option>
+                            <option value="high_angle_fire">曲射</option>
+                            <option value="ready_to_die">決死の覚悟</option>
+                            <option value="martial_arts">拳闘術</option>
+                            <option value="escort">護衛</option>
+                            <option value="heavy_attack">重撃</option>
+                            <option value="risk_attack">捨て身の一撃</option>
+                            <option value="machine_gunning">掃射</option>
+                            <option value="snipe">狙撃</option>
+                            <option value="provoke">挑発</option>
+                            <option value="lightning_speed">電光石火</option>
+                            <option value="rush">突撃</option>
+                            <option value="cleave">凪払い</option>
+                            <option value="knock_shooting">弾き落とし</option>
+                            <option value="parry">パリィ</option>
+                            <option value="feint">フェイント</option>
+                            <option value="throw_weapon">武器投げの習熟</option>
+                            <option value="break_weapon">武器破壊</option>
+                            <option value="fortitude">不屈</option>
+                            <option value="gait">歩法</option>
+                            <option value="anticipate">見切り</option>
+                            <option value="pierce_armor">鎧通し</option>
+                        `;
+                        break;
+                    case "magic":
+                        select.innerHTML = `
+                            <option value="light">灯り</option>
+                            <option value="dozing">居眠り</option>
+                            <option value="enchant">エンチャント</option>
+                            <option value="send_sound">音送り</option>
+                            <option value="silence">音消し</option>
+                            <option value="recovery">回復</option>
+                            <option value="read_wind">風読み</option>
+                            <option value="activate">活性</option>
+                            <option value="fear">恐怖</option>
+                            <option value="warning">警報</option>
+                            <option value="barrier">結界</option>
+                            <option value="illusion">幻影</option>
+                            <option value="telecommunication">交信</option>
+                            <option value="power_of_word">言霊</option>
+                            <option value="ritual_of_spirit">死儀</option>
+                            <option value="heal">治癒</option>
+                            <option value="calling">通話</option>
+                            <option value="familiar">使い魔</option>
+                            <option value="ignite">点火</option>
+                            <option value="extend_magic">範囲魔術</option>
+                            <option value="light_brush">光の筆</option>
+                            <option value="cover">被覆</option>
+                            <option value="float">富裕</option>
+                            <option value="magic_weapon">魔術の得物</option>
+                        `;
+                        break;
+                    case "features":
+                        select.innerHTML = `
+                            <option value="wisdom">叡智</option>
+                            <option value="concentrate">過集中</option>
+                            <option value="acrobatics">軽業</option>
+                            <option value="connivance">看破</option>
+                            <option value="thin">希薄</option>
+                            <option value="cajolery">口車</option>
+                            <option value="connection">コネクション</option>
+                            <option value="change_clothes">様変わりの衣</option>
+                            <option value="hide_object">仕込み</option>
+                            <option value="auto_writing">自動筆記具</option>
+                            <option value="pickpocket">スリの極意</option>
+                            <option value="instant">即席</option>
+                            <option value="infinite_bagpack">底なしの鞄</option>
+                            <option value="training">調教</option>
+                            <option value="instruction">伝授</option>
+                            <option value="cleverness">天性の小手先</option>
+                            <option value="adaptability">踏破</option>
+                            <option value="cipher">独自暗号</option>
+                            <option value="spoofing">なりすまし</option>
+                            <option value="beauty">美貌</option>
+                            <option value="other_name">二つ名</option>
+                            <option value="decompose">分解</option>
+                            <option value="honor">誉れ</option>
+                            <option value="night_vision">夜目</option>
+                        `;
+                        break;
+                    default:
+                        select.innerHTML = `<option value="">---</option>`;
+                        break;
+                }
+            }
+            if (element.classList.contains("special_skill_group") || element.classList.contains("special_skill")) {
+                let select = element.parentElement.querySelector(".special_skill");
+                let input = element.parentElement.querySelector(".special_skill_note");
+                const addInputList = ["enchant", "ritual_of_spirit", "familiar", "magic_weapon", "wisdom", "connection", "hide_object", "instant", "training", "spoofing", "other_name", "honor"];
+                input.style.display = addInputList.includes(select.value) ? "block" : "none";
+            }
+        }
+
+        function generateFromInput() {
+            const characterSheet = {
+                name: document.getElementById('name').value,
+                player: document.getElementById('player').value,
+                species: document.getElementById('species').value,
+                rare_species: document.getElementById('rare-species').value,
+                init_scar: document.getElementById('init-scar').value,
+                init_weakness1: document.getElementById('init-weakness1').value,
+                init_weakness2: document.getElementById('init-weakness2').value,
+                skills: [],
+                special_skills: [],
+                equipments: {}
+            };
+
+            // 技能
+            skillNames.forEach(skill => {
+                const selected = document.getElementById(skill).checked;
+                const expertSkills = document.getElementById(`${skill}-expert`).value.split(',').map(s => s.trim()).filter(s => s);
+                characterSheet.skills.push({ selected, expert_skills: expertSkills });
+            });
+
+            // 特技
+            for (let i = 1; i <= 15; i++) {
+                const group = document.getElementById(`special-skill-group-${i}`).value;
+                const name = document.getElementById(`special-skill-name-${i}`).value;
+                const note = document.getElementById(`special-skill-note-${i}`).value;
+                characterSheet.special_skills.push({ group, name, note });
+            }
+
+            // 装備品
+            equipmentTypes.forEach(type => {
+                characterSheet.equipments[type] = {
+                    group: document.getElementById(`${type}-group`).value,
+                    name: document.getElementById(`${type}-name`).value
+                };
+            });
+
+            const formattedText = formatJson(characterSheet);
+            document.getElementById('output').value = formattedText;
+        }
+
+        function saveToFile() {
+            const characterSheet = {
+                name: document.getElementById('name').value,
+                player: document.getElementById('player').value,
+                species: document.getElementById('species').value,
+                rare_species: document.getElementById('rare-species').value,
+                init_scar: document.getElementById('init-scar').value,
+                init_weakness1: document.getElementById('init-weakness1').value,
+                init_weakness2: document.getElementById('init-weakness2').value,
+                skills: [],
+                special_skills: [],
+                equipments: {}
+            };
+
+            // 技能
+            skillNames.forEach(skill => {
+                const selected = document.getElementById(skill).checked;
+                const expertSkills = document.getElementById(`${skill}-expert`).value.split(',').map(s => s.trim()).filter(s => s);
+                characterSheet.skills.push({ selected, expert_skills: expertSkills });
+            });
+
+            // 特技
+            for (let i = 1; i <= 15; i++) {
+                const group = document.getElementById(`special-skill-group-${i}`).value;
+                const name = document.getElementById(`special-skill-name-${i}`).value;
+                const note = document.getElementById(`special-skill-note-${i}`).value;
+                characterSheet.special_skills.push({ group, name, note });
+            }
+
+            // 装備品
+            equipmentTypes.forEach(type => {
+                characterSheet.equipments[type] = {
+                    group: document.getElementById(`${type}-group`).value,
+                    name: document.getElementById(`${type}-name`).value
+                };
+            });
+
+            const json = JSON.stringify(characterSheet, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'character_sheet.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        window.onload = initializeUI;
+    </script>
+</body>
+</html>
